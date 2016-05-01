@@ -40,18 +40,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(aNotification: NSNotification) {
         let icon = NSImage(named: "statusIcon")
         
-        statusItem.image = icon
-        statusItem.menu = statusMenu
+        if let button = statusItem.button {
+            button.image = icon
+            button.action = #selector(AppDelegate.handleMenuOpen(_:))
+        }
         
-        services = serviceStates()
-        updateMenu()
+        queryServicesAndUpdateMenu()
     }
 
     func applicationWillTerminate(aNotification: NSNotification) {
         // Insert code here to tear down your application
     }
+
+    //
+    // Event handlers for UI actions
+    //
+    func handleClick(sender: NSMenuItem) {
+        if (sender.state == NSOnState) {
+            sender.state = NSOffState
+            controlService(sender.title, state: "stop")
+        } else {
+            sender.state = NSOnState
+            controlService(sender.title, state: "start")
+        }
+    }
     
+    func handleQuit(sender: NSMenuItem) {
+        NSApplication.sharedApplication().terminate(nil)
+    }
+    
+    func handleMenuOpen(sender: AnyObject?) {
+        queryServicesAndUpdateMenu()
+        statusItem.popUpStatusItemMenu(statusMenu)
+    }
+    
+    //
+    // Update menu of services 
+    //
     func updateMenu() {
+        statusMenu.removeAllItems()
         for service in services {
             let item = NSMenuItem.init(title: service.name, action:#selector(AppDelegate.handleClick(_:)), keyEquivalent: "")
             if service.state == "started" {
@@ -59,8 +86,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             statusMenu.addItem(item)
         }
+        statusMenu.addItem(NSMenuItem.separatorItem())
+        let quit = NSMenuItem.init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
+        statusMenu.addItem(quit)
     }
     
+    func queryServicesAndUpdateMenu() {
+        services = serviceStates()
+        updateMenu()
+    }
+    
+    //
+    // Changes a service state
+    //
+    func controlService(name:String, state:String) {
+        let task = NSTask()
+        let outpipe = NSPipe()
+        task.standardOutput = outpipe
+        
+        task.launchPath = "/usr/local/bin/brew"
+        task.arguments = ["services", state, name]
+        task.launch()
+    }
+    
+    //
+    // Queries and parses the output of:
+    //      brew services list
+    //
     func serviceStates() -> [Service] {
         let task = NSTask()
         let outpipe = NSPipe()
@@ -79,45 +131,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return []
     }
     
-    func controlService(name:String, state:String) {
-        let task = NSTask()
-        let outpipe = NSPipe()
-        task.standardOutput = outpipe
-        
-        task.launchPath = "/usr/local/bin/brew"
-        task.arguments = ["services", state, name]
-        task.launch()
-    }
-    
+    let matcher = "([^ ]+)([^ ]+)"
+
     func parseServiceList(raw: String) -> [Service] {
-        let r = "([^ ]+)([^ ]+)"
-        var services = [Service]()
         let rawServices = raw.componentsSeparatedByString("\n")
-        for s in rawServices {
-            let parts = matchesForRegexInText(r, text: s)
-            let service = Service(name: parts[0], state: parts[1])
-            services.append(service)
-        }
-        return services
+        return rawServices[1..<rawServices.count].map(parseService)
     }
     
-    func handleClick(sender: NSMenuItem) {
-        if (sender.state == NSOnState) {
-            sender.state = NSOffState
-            controlService(sender.title, state: "stop")
-        } else {
-            sender.state = NSOnState
-            controlService(sender.title, state: "start")
-        }
-    }
-
-
-    @IBAction func itemClicked(sender: NSMenuItem) {
-        if (sender.state == NSOnState) {
-            sender.state = NSOffState
-        } else {
-            sender.state = NSOnState
-        }
+    func parseService(raw:String) -> Service {
+        let parts = matchesForRegexInText(matcher, text: raw)
+        let service = Service(name: parts[0], state: parts[1])
+        return service;
     }
 }
 
