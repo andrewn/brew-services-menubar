@@ -38,7 +38,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var services = [Service]()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        let icon = NSImage(named: "statusIcon")
+        let icon = NSImage(named: "icon")
+        icon?.isTemplate = true
         
         if let button = statusItem.button {
             button.image = icon
