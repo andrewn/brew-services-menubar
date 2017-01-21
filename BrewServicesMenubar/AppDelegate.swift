@@ -13,13 +13,13 @@ struct Service {
     var state = "unknown" // "started", "stopped", "unknown"
 }
 
-func matchesForRegexInText(regex: String!, text: String!) -> [String] {
+func matchesForRegexInText(_ regex: String!, text: String!) -> [String] {
     do {
         let regex = try NSRegularExpression(pattern: regex, options: [])
         let nsString = text as NSString
-        let results = regex.matchesInString(text,
+        let results = regex.matches(in: text,
                                             options: [], range: NSMakeRange(0, nsString.length))
-        return results.map { nsString.substringWithRange($0.range)}
+        return results.map { nsString.substring(with: $0.range)}
     } catch let error as NSError {
         print("invalid regex: \(error.localizedDescription)")
         return []
@@ -34,10 +34,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @IBOutlet weak var statusMenu: NSMenu!
     
     // Returns a status item from the system menu bar of variable length
-    let statusItem = NSStatusBar.systemStatusBar().statusItemWithLength(-1)
+    let statusItem = NSStatusBar.system().statusItem(withLength: -1)
     var services = [Service]()
 
-    func applicationDidFinishLaunching(aNotification: NSNotification) {
+    func applicationDidFinishLaunching(_ aNotification: Notification) {
         let icon = NSImage(named: "statusIcon")
         
         if let button = statusItem.button {
@@ -48,14 +48,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         queryServicesAndUpdateMenu()
     }
 
-    func applicationWillTerminate(aNotification: NSNotification) {
+    func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
     }
 
     //
     // Event handlers for UI actions
     //
-    func handleClick(sender: NSMenuItem) {
+    func handleClick(_ sender: NSMenuItem) {
         if (sender.state == NSOnState) {
             sender.state = NSOffState
             controlService(sender.title, state: "stop")
@@ -65,13 +65,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func handleQuit(sender: NSMenuItem) {
-        NSApplication.sharedApplication().terminate(nil)
+    func handleQuit(_ sender: NSMenuItem) {
+        NSApplication.shared().terminate(nil)
     }
     
-    func handleMenuOpen(sender: AnyObject?) {
+    func handleMenuOpen(_ sender: AnyObject?) {
         queryServicesAndUpdateMenu()
-        statusItem.popUpStatusItemMenu(statusMenu)
+        statusItem.popUpMenu(statusMenu)
     }
     
     //
@@ -86,7 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             statusMenu.addItem(item)
         }
-        statusMenu.addItem(NSMenuItem.separatorItem())
+        statusMenu.addItem(NSMenuItem.separator())
         let quit = NSMenuItem.init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
         statusMenu.addItem(quit)
     }
@@ -99,9 +99,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     // Changes a service state
     //
-    func controlService(name:String, state:String) {
-        let task = NSTask()
-        let outpipe = NSPipe()
+    func controlService(_ name:String, state:String) {
+        let task = Process()
+        let outpipe = Pipe()
         task.standardOutput = outpipe
         
         task.launchPath = "/usr/local/bin/brew"
@@ -114,8 +114,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //      brew services list
     //
     func serviceStates() -> [Service] {
-        let task = NSTask()
-        let outpipe = NSPipe()
+        let task = Process()
+        let outpipe = Pipe()
         task.standardOutput = outpipe
         
         task.launchPath = "/usr/local/bin/brew"
@@ -123,8 +123,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         task.launch()
         
         let outdata = outpipe.fileHandleForReading.readDataToEndOfFile()
-        if var string = String.fromCString(UnsafePointer(outdata.bytes)) {
-            string = string.stringByTrimmingCharactersInSet(NSCharacterSet.newlineCharacterSet())
+        if var string = String(data: outdata, encoding: String.Encoding.utf8) {
+            string = string.trimmingCharacters(in: CharacterSet.newlines)
             return parseServiceList(string)
         }
         
@@ -133,12 +133,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     let matcher = "([^ ]+)([^ ]+)"
 
-    func parseServiceList(raw: String) -> [Service] {
-        let rawServices = raw.componentsSeparatedByString("\n")
+    func parseServiceList(_ raw: String) -> [Service] {
+        let rawServices = raw.components(separatedBy: "\n")
         return rawServices[1..<rawServices.count].map(parseService)
     }
     
-    func parseService(raw:String) -> Service {
+    func parseService(_ raw:String) -> Service {
         let parts = matchesForRegexInText(matcher, text: raw)
         let service = Service(name: parts[0], state: parts[1])
         return service;
