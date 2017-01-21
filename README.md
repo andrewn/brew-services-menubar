@@ -5,7 +5,7 @@ An OS X menu item for starting and stopping homebrew services Edit.
 
 This reads the [homebrew-services](https://github.com/Homebrew/homebrew-services) command 
 
-![Screenshot](http://andrewnicolaou.co.uk/projects/images/homebrew-services-menubar-selected-768.jpg)
+![Screenshot](docs/screenshot.png)
 
 ## Install
 
