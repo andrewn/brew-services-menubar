@@ -86,6 +86,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                 statusMenu.addItem(item)
             }
+            if (services.count == 0) {
+                let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
+                item.isEnabled = false
+                statusMenu.addItem(item)
+            }
         } else {
             let item = NSMenuItem.init(title: "Querying services...", action: nil, keyEquivalent: "")
             item.isEnabled = false
