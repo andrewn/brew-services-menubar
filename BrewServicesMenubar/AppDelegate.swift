@@ -33,7 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBOutlet weak var window: NSWindow!
     @IBOutlet weak var statusMenu: NSMenu!
-    
+
     // Returns a status item from the system menu bar of variable length
     let statusItem = NSStatusBar.system().statusItem(withLength: -1)
     var services = [Service]()
@@ -41,7 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         let icon = NSImage(named: "icon")
         icon?.isTemplate = true
-        
+
         if let button = statusItem.button {
             button.image = icon
             button.action = #selector(AppDelegate.handleMenuOpen(_:))
@@ -64,18 +64,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             controlService(sender.title, state: "start")
         }
     }
-    
+
     func handleQuit(_ sender: NSMenuItem) {
         NSApplication.shared().terminate(nil)
     }
-    
+
     func handleMenuOpen(_ sender: AnyObject?) {
         queryServicesAndUpdateMenu()
         statusItem.popUpMenu(statusMenu)
     }
-    
+
     //
-    // Update menu of services 
+    // Update menu of services
     //
     func updateMenu() {
         let user = NSUserName()
@@ -107,12 +107,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let quit = NSMenuItem.init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
         statusMenu.addItem(quit)
     }
-    
+
     func queryServicesAndUpdateMenu() {
         services = serviceStates()
         updateMenu()
     }
-    
+
     //
     // Changes a service state
     //
@@ -120,12 +120,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let task = Process()
         let outpipe = Pipe()
         task.standardOutput = outpipe
-        
+
         task.launchPath = "/usr/local/bin/brew"
         task.arguments = ["services", state, name]
         task.launch()
     }
-    
+
     //
     // Queries and parses the output of:
     //      brew services list
@@ -134,17 +134,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let task = Process()
         let outpipe = Pipe()
         task.standardOutput = outpipe
-        
+
         task.launchPath = "/usr/local/bin/brew"
         task.arguments = ["services", "list"]
         task.launch()
-        
+
         let outdata = outpipe.fileHandleForReading.readDataToEndOfFile()
         if var string = String(data: outdata, encoding: String.Encoding.utf8) {
             string = string.trimmingCharacters(in: CharacterSet.newlines)
             return parseServiceList(string)
         }
-        
+
         return []
     }
 
@@ -152,7 +152,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let rawServices = raw.components(separatedBy: "\n")
         return rawServices[1..<rawServices.count].map(parseService)
     }
-    
+
     func parseService(_ raw:String) -> Service {
         let parts = raw.components(separatedBy: " ").filter() { $0 != "" }
         return Service(
@@ -162,4 +162,3 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 }
-
