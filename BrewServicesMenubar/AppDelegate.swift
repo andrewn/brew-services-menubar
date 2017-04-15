@@ -10,7 +10,7 @@ import Cocoa
 
 struct Service {
     var name = ""
-    var state = "unknown" // "started", "stopped", "unknown"
+    var state = "unknown" // "started", "stopped", "error", "unknown"
 }
 
 func matchesForRegexInText(_ regex: String!, text: String!) -> [String] {
@@ -81,10 +81,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateMenu() {
         statusMenu.removeAllItems()
         for service in services {
-            let item = NSMenuItem.init(title: service.name, action:#selector(AppDelegate.handleClick(_:)), keyEquivalent: "")
+            let item = NSMenuItem.init(title: service.name, action:nil, keyEquivalent: "")
+
             if service.state == "started" {
                 item.state = NSOnState
+            } else if service.state == "stopped" {
+                item.state = NSOffState
+            } else {
+                item.state = NSMixedState
+                item.isEnabled = false
             }
+
+            if item.isEnabled {
+                item.action = #selector(AppDelegate.handleClick(_:))
+            }
+
             statusMenu.addItem(item)
         }
         statusMenu.addItem(NSMenuItem.separator())
