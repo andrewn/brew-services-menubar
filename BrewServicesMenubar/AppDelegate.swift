@@ -19,7 +19,6 @@ struct Service {
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
-    @IBOutlet weak var window: NSWindow!
     @IBOutlet weak var statusMenu: NSMenu!
 
     // Returns a status item from the system menu bar of variable length
