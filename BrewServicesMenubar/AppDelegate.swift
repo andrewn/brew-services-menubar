@@ -46,8 +46,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = icon
             button.action = #selector(AppDelegate.handleMenuOpen(_:))
         }
-        
-        queryServicesAndUpdateMenu()
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
