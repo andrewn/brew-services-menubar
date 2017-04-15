@@ -117,12 +117,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func controlService(_ name:String, state:String) {
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
-            let outpipe = Pipe()
-            task.standardOutput = outpipe
-
             task.launchPath = "/usr/local/bin/brew"
             task.arguments = ["services", state, name]
+
             task.launch()
+            task.waitUntilExit()
+
+            if task.terminationStatus != 0 {
+                DispatchQueue.main.async {
+                    let alert = NSAlert.init()
+                    alert.alertStyle = .critical
+                    alert.messageText = "Could not \(state) \(name)"
+                    alert.informativeText = "You will need to manually resolve the issue."
+                    alert.runModal()
+                }
+            }
         }
     }
 
@@ -133,13 +142,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func serviceStates() -> [Service] {
         let task = Process()
         let outpipe = Pipe()
-        task.standardOutput = outpipe
-
         task.launchPath = "/usr/local/bin/brew"
         task.arguments = ["services", "list"]
-        task.launch()
+        task.standardOutput = outpipe
 
+        task.launch()
         let outdata = outpipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+
+        if task.terminationStatus != 0 {
+            return []
+        }
+
         if var string = String(data: outdata, encoding: String.Encoding.utf8) {
             string = string.trimmingCharacters(in: CharacterSet.newlines)
             return parseServiceList(string)
