@@ -8,6 +8,8 @@
 
 import Cocoa
 
+let brewExecutableKey = "brewExecutable"
+
 struct Service {
     var name = ""
     var state = "unknown" // "started", "stopped", "error", "unknown"
@@ -25,6 +27,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var services: [Service]?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        UserDefaults.standard.register(defaults: [
+            brewExecutableKey: "/usr/local/bin/brew"
+        ])
+
         let icon = NSImage(named: "icon")
         icon?.isTemplate = true
 
@@ -117,12 +123,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     //
+    // Locate homebrew
+    //
+    func brewExecutable() -> String {
+        return UserDefaults.standard.string(forKey: brewExecutableKey)!
+    }
+
+    //
     // Changes a service state
     //
     func controlService(_ name:String, state:String) {
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
-            task.launchPath = "/usr/local/bin/brew"
+            task.launchPath = self.brewExecutable()
             task.arguments = ["services", state, name]
 
             task.launch()
@@ -145,9 +158,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //      brew services list
     //
     func serviceStates() -> [Service] {
+        let launchPath = self.brewExecutable()
+        if !FileManager.default.isExecutableFile(atPath: launchPath) {
+            return []
+        }
+
         let task = Process()
         let outpipe = Pipe()
-        task.launchPath = "/usr/local/bin/brew"
+        task.launchPath = launchPath
         task.arguments = ["services", "list"]
         task.standardOutput = outpipe
 
