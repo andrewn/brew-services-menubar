@@ -43,7 +43,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Event handlers for UI actions
     //
     func handleClick(_ sender: NSMenuItem) {
-        if (sender.state == NSOnState) {
+        if sender.state == NSOnState {
             sender.state = NSOffState
             controlService(sender.title, state: "stop")
         } else {
@@ -91,7 +91,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                 statusMenu.addItem(item)
             }
-            if (services.count == 0) {
+            if services.count == 0 {
                 let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
                 item.isEnabled = false
                 statusMenu.addItem(item)
