@@ -11,6 +11,7 @@ import Cocoa
 struct Service {
     var name = ""
     var state = "unknown" // "started", "stopped", "error", "unknown"
+    var user = ""
 }
 
 func matchesForRegexInText(_ regex: String!, text: String!) -> [String] {
@@ -79,6 +80,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Update menu of services 
     //
     func updateMenu() {
+        let user = NSUserName()
+
         statusMenu.removeAllItems()
         for service in services {
             let item = NSMenuItem.init(title: service.name, action:nil, keyEquivalent: "")
@@ -89,6 +92,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 item.state = NSOffState
             } else {
                 item.state = NSMixedState
+                item.isEnabled = false
+            }
+
+            if service.user != "" && service.user != user {
                 item.isEnabled = false
             }
 
@@ -142,8 +149,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         return []
     }
-    
-    let matcher = "([^ ]+)([^ ]+)"
 
     func parseServiceList(_ raw: String) -> [Service] {
         let rawServices = raw.components(separatedBy: "\n")
@@ -151,9 +156,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func parseService(_ raw:String) -> Service {
-        let parts = matchesForRegexInText(matcher, text: raw)
-        let service = Service(name: parts[0], state: parts[1])
-        return service;
+        let parts = raw.components(separatedBy: " ").filter() { $0 != "" }
+        return Service(
+            name: parts[0],
+            state: parts.count >= 2 ? parts[1] : "unknown",
+            user: parts.count >= 3 ? parts[2] : ""
+        )
     }
 }
 
