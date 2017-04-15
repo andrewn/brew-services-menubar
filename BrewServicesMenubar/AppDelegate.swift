@@ -22,7 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Returns a status item from the system menu bar of variable length
     let statusItem = NSStatusBar.system().statusItem(withLength: -1)
-    var services = [Service]()
+    var services: [Service]?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         let icon = NSImage(named: "icon")
@@ -60,52 +60,70 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Update menu of services
     //
     func updateMenu() {
-        let user = NSUserName()
-
         statusMenu.removeAllItems()
-        for service in services {
-            let item = NSMenuItem.init(title: service.name, action:nil, keyEquivalent: "")
 
-            if service.state == "started" {
-                item.state = NSOnState
-            } else if service.state == "stopped" {
-                item.state = NSOffState
-            } else {
-                item.state = NSMixedState
-                item.isEnabled = false
+        if let services = services {
+            let user = NSUserName()
+            for service in services {
+                let item = NSMenuItem.init(title: service.name, action: nil, keyEquivalent: "")
+
+                if service.state == "started" {
+                    item.state = NSOnState
+                } else if service.state == "stopped" {
+                    item.state = NSOffState
+                } else {
+                    item.state = NSMixedState
+                    item.isEnabled = false
+                }
+
+                if service.user != "" && service.user != user {
+                    item.isEnabled = false
+                }
+
+                if item.isEnabled {
+                    item.action = #selector(AppDelegate.handleClick(_:))
+                }
+
+                statusMenu.addItem(item)
             }
-
-            if service.user != "" && service.user != user {
-                item.isEnabled = false
-            }
-
-            if item.isEnabled {
-                item.action = #selector(AppDelegate.handleClick(_:))
-            }
-
-            statusMenu.addItem(item)
+        } else {
+            statusMenu.addItem(
+                .init(title: "Querying services...", action: nil, keyEquivalent: "")
+            )
         }
-        statusMenu.addItem(NSMenuItem.separator())
-        let quit = NSMenuItem.init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
-        statusMenu.addItem(quit)
+
+        statusMenu.addItem(.separator())
+        statusMenu.addItem(
+            .init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
+        )
     }
 
     func queryServicesAndUpdateMenu() {
-        services = serviceStates()
+        services = nil
         updateMenu()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = self.serviceStates()
+            DispatchQueue.main.async {
+                self.services = result
+                self.updateMenu()
+            }
+        }
     }
 
     //
     // Changes a service state
     //
     func controlService(_ name:String, state:String) {
-        let task = Process()
-        let outpipe = Pipe()
-        task.standardOutput = outpipe
+        DispatchQueue.global(qos: .userInitiated).async {
+            let task = Process()
+            let outpipe = Pipe()
+            task.standardOutput = outpipe
 
-        task.launchPath = "/usr/local/bin/brew"
-        task.arguments = ["services", state, name]
-        task.launch()
+            task.launchPath = "/usr/local/bin/brew"
+            task.arguments = ["services", state, name]
+            task.launch()
+        }
     }
 
     //
