@@ -48,7 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func handleQuit(_ sender: NSMenuItem) {
-        NSApplication.shared().terminate(nil)
+        NSApp.terminate(nil)
     }
 
     func handleMenuOpen(_ sender: AnyObject?) {
