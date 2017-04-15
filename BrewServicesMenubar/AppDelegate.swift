@@ -87,9 +87,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 statusMenu.addItem(item)
             }
         } else {
-            statusMenu.addItem(
-                .init(title: "Querying services...", action: nil, keyEquivalent: "")
-            )
+            let item = NSMenuItem.init(title: "Querying services...", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            statusMenu.addItem(item)
         }
 
         statusMenu.addItem(.separator())
