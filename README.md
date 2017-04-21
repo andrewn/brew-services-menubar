@@ -19,6 +19,10 @@ you can customize it using:
 defaults write andrewnicolaou.BrewServicesMenubar brewExecutable /usr/local/bin/brew
 ```
 
+## Contributors
+
+- Andrew Nicolaou (https://github.com/andrewn)
+
 ## License
 
 Icon is [Beer by Enemen from the Noun Project](https://thenounproject.com/search/?q=beer&i=783212).
