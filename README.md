@@ -22,6 +22,7 @@ defaults write andrewnicolaou.BrewServicesMenubar brewExecutable /usr/local/bin/
 ## Contributors
 
 - Andrew Nicolaou (https://github.com/andrewn)
+- Stéphan Kochen (https://github.com/stephank)
 
 ## License
 
