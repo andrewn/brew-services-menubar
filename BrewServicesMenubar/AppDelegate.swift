@@ -54,6 +54,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func handleStartAll(_ sender: NSMenuItem) {
+        controlService("--all", state: "start")
+    }
+
+    func handleStopAll(_ sender: NSMenuItem) {
+        controlService("--all", state: "stop")
+    }
+
     func handleQuit(_ sender: NSMenuItem) {
         NSApp.terminate(nil)
     }
@@ -97,6 +105,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
                 item.isEnabled = false
                 statusMenu.addItem(item)
+            }
+            else {
+                statusMenu.addItem(.separator())
+                statusMenu.addItem(
+                    .init(title: "Start all", action:#selector(AppDelegate.handleStartAll(_:)), keyEquivalent: "s")
+                )
+                statusMenu.addItem(
+                    .init(title: "Stop all", action:#selector(AppDelegate.handleStopAll(_:)), keyEquivalent: "x")
+                )
             }
         } else {
             let item = NSMenuItem.init(title: "Querying services...", action: nil, keyEquivalent: "")
