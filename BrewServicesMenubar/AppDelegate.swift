@@ -37,6 +37,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = icon
             button.action = #selector(AppDelegate.handleMenuOpen(_:))
         }
+
+        queryServicesAndUpdateMenu()
     }
 
     //
@@ -109,7 +111,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func queryServicesAndUpdateMenu() {
-        services = nil
         updateMenu()
 
         DispatchQueue.global(qos: .userInitiated).async {
