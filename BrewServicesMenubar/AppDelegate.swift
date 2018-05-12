@@ -74,7 +74,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     // Update menu of services
     //
-    func updateMenu() {
+    func updateMenu(refreshing: Bool) {
         statusMenu.removeAllItems()
 
         if let services = services {
@@ -115,26 +115,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     .init(title: "Stop all", action:#selector(AppDelegate.handleStopAll(_:)), keyEquivalent: "x")
                 )
             }
-        } else {
-            let item = NSMenuItem.init(title: "Querying services...", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            statusMenu.addItem(item)
         }
 
         statusMenu.addItem(.separator())
         statusMenu.addItem(
             .init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
         )
+
+        if refreshing {
+            statusMenu.addItem(.separator())
+            let item = NSMenuItem.init(title: "Refreshing...", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            statusMenu.addItem(item)
+        }
     }
 
     func queryServicesAndUpdateMenu() {
-        updateMenu()
+        updateMenu(refreshing: true)
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = self.serviceStates()
             DispatchQueue.main.async {
                 self.services = result
-                self.updateMenu()
+                self.updateMenu(refreshing: false)
             }
         }
     }
