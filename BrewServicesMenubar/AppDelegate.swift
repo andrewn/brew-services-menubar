@@ -67,6 +67,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         controlService("--all", state: "stop")
     }
 
+    func handleRestartAll(_ sender: NSMenuItem) {
+        controlService("--all", state: "restart")
+    }
+
     func handleQuit(_ sender: NSMenuItem) {
         NSApp.terminate(nil)
     }
@@ -127,6 +131,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 )
                 statusMenu.addItem(
                     .init(title: "Stop all", action:#selector(AppDelegate.handleStopAll(_:)), keyEquivalent: "x")
+                )
+                statusMenu.addItem(
+                    .init(title: "Restart all", action:#selector(AppDelegate.handleRestartAll(_:)), keyEquivalent: "r")
                 )
             }
         }
