@@ -54,6 +54,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func handleRestartClick(_ sender: NSMenuItem) {
+        let service = sender.representedObject as! Service
+        controlService(service.name, state: "restart")
+    }
+
     func handleStartAll(_ sender: NSMenuItem) {
         controlService("--all", state: "start")
     }
@@ -100,6 +105,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
 
                 statusMenu.addItem(item)
+
+                let altItem = NSMenuItem.init(title: "Restart "+service.name, action: #selector(AppDelegate.handleRestartClick(_:)), keyEquivalent: "")
+                altItem.representedObject = service
+                altItem.state = item.state
+                altItem.isEnabled = item.isEnabled
+                altItem.isAlternate = true
+                altItem.isHidden = true
+                altItem.keyEquivalentModifierMask = NSAlternateKeyMask
+                statusMenu.addItem(altItem)
             }
             if services.count == 0 {
                 let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
