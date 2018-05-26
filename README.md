@@ -1,7 +1,7 @@
 brew-services-menubar
 ===
 
-An OS X menu item for starting and stopping homebrew services Edit.
+An OS X menu item for starting and stopping homebrew services.
 
 This reads the [homebrew-services](https://github.com/Homebrew/homebrew-services) command 
 
