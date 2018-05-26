@@ -191,6 +191,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     alert.runModal()
                 }
             }
+
+            self.queryServicesAndUpdateMenu()
         }
     }
 
