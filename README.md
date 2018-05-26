@@ -33,7 +33,7 @@ defaults write andrewnicolaou.BrewServicesMenubar brewExecutable /usr/local/bin/
 
 - Andrew Nicolaou (https://github.com/andrewn)
 - Stéphan Kochen (https://github.com/stephank)
-- Stefan Sundin (https://github.com/stefansundin) - contributed Homebrew-Cask for easy installation
+- Stefan Sundin (https://github.com/stefansundin)
 
 ## License
 
