@@ -37,6 +37,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = icon
             button.action = #selector(AppDelegate.handleMenuOpen(_:))
         }
+
+        queryServicesAndUpdateMenu()
     }
 
     //
@@ -52,6 +54,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func handleRestartClick(_ sender: NSMenuItem) {
+        let service = sender.representedObject as! Service
+        controlService(service.name, state: "restart")
+    }
+
+    func handleStartAll(_ sender: NSMenuItem) {
+        controlService("--all", state: "start")
+    }
+
+    func handleStopAll(_ sender: NSMenuItem) {
+        controlService("--all", state: "stop")
+    }
+
+    func handleRestartAll(_ sender: NSMenuItem) {
+        controlService("--all", state: "restart")
+    }
+
     func handleQuit(_ sender: NSMenuItem) {
         NSApp.terminate(nil)
     }
@@ -64,7 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     // Update menu of services
     //
-    func updateMenu() {
+    func updateMenu(refreshing: Bool) {
         statusMenu.removeAllItems()
 
         if let services = services {
@@ -90,33 +109,56 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
 
                 statusMenu.addItem(item)
+
+                let altItem = NSMenuItem.init(title: "Restart "+service.name, action: #selector(AppDelegate.handleRestartClick(_:)), keyEquivalent: "")
+                altItem.representedObject = service
+                altItem.state = item.state
+                altItem.isEnabled = item.isEnabled
+                altItem.isAlternate = true
+                altItem.isHidden = true
+                altItem.keyEquivalentModifierMask = NSAlternateKeyMask
+                statusMenu.addItem(altItem)
             }
             if services.count == 0 {
                 let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
                 item.isEnabled = false
                 statusMenu.addItem(item)
             }
-        } else {
-            let item = NSMenuItem.init(title: "Querying services...", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            statusMenu.addItem(item)
+            else {
+                statusMenu.addItem(.separator())
+                statusMenu.addItem(
+                    .init(title: "Start all", action:#selector(AppDelegate.handleStartAll(_:)), keyEquivalent: "s")
+                )
+                statusMenu.addItem(
+                    .init(title: "Stop all", action:#selector(AppDelegate.handleStopAll(_:)), keyEquivalent: "x")
+                )
+                statusMenu.addItem(
+                    .init(title: "Restart all", action:#selector(AppDelegate.handleRestartAll(_:)), keyEquivalent: "r")
+                )
+            }
         }
 
         statusMenu.addItem(.separator())
         statusMenu.addItem(
             .init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
         )
+
+        if refreshing {
+            statusMenu.addItem(.separator())
+            let item = NSMenuItem.init(title: "Refreshing...", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            statusMenu.addItem(item)
+        }
     }
 
     func queryServicesAndUpdateMenu() {
-        services = nil
-        updateMenu()
+        updateMenu(refreshing: true)
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = self.serviceStates()
             DispatchQueue.main.async {
                 self.services = result
-                self.updateMenu()
+                self.updateMenu(refreshing: false)
             }
         }
     }
