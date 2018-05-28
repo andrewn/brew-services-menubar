@@ -19,24 +19,48 @@ struct Service {
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
-    @IBOutlet weak var statusMenu: NSMenu!
-
-    // Returns a status item from the system menu bar of variable length
     let statusItem = NSStatusBar.system().statusItem(withLength: -1)
-    var services: [Service]?
+    var statusMenu: NSMenu!
+    var noServicesItem: NSMenuItem!
+    var refreshingSeparator: NSMenuItem!
+    var refreshingItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         UserDefaults.standard.register(defaults: [
             brewExecutableKey: "/usr/local/bin/brew"
         ])
 
-        let icon = NSImage(named: "icon")
-        icon?.isTemplate = true
-
         if let button = statusItem.button {
+            let icon = NSImage(named: "icon")
+            icon?.isTemplate = true
             button.image = icon
             button.action = #selector(AppDelegate.handleMenuOpen(_:))
         }
+
+        // Create and add all menu items except the services themselves
+        noServicesItem = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
+        noServicesItem.isEnabled = false
+        refreshingSeparator = NSMenuItem.separator()
+        refreshingItem = NSMenuItem.init(title: "Refreshing...", action: nil, keyEquivalent: "")
+        refreshingItem.isEnabled = false
+
+        statusMenu.addItem(noServicesItem)
+        statusMenu.addItem(.separator())
+        statusMenu.addItem(
+            .init(title: "Start all", action:#selector(AppDelegate.handleStartAll(_:)), keyEquivalent: "s")
+        )
+        statusMenu.addItem(
+            .init(title: "Stop all", action:#selector(AppDelegate.handleStopAll(_:)), keyEquivalent: "x")
+        )
+        statusMenu.addItem(
+            .init(title: "Restart all", action:#selector(AppDelegate.handleRestartAll(_:)), keyEquivalent: "r")
+        )
+        statusMenu.addItem(.separator())
+        statusMenu.addItem(
+            .init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
+        )
+        statusMenu.addItem(refreshingSeparator)
+        statusMenu.addItem(refreshingItem)
 
         queryServicesAndUpdateMenu()
     }
@@ -46,12 +70,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     func handleClick(_ sender: NSMenuItem) {
         if sender.state == NSOnState {
-            sender.state = NSOffState
             controlService(sender.title, state: "stop")
-        } else {
-            sender.state = NSOnState
+        }
+        else {
             controlService(sender.title, state: "start")
         }
+        sender.state = NSMixedState
+        let altItem = sender.menu!.item(withTitle: "Restart "+sender.title)
+        altItem!.state = NSMixedState
     }
 
     func handleRestartClick(_ sender: NSMenuItem) {
@@ -83,82 +109,79 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     // Update menu of services
     //
-    func updateMenu(refreshing: Bool) {
-        statusMenu.removeAllItems()
+    func updateMenu(_ services: [Service]) {
+        noServicesItem.isHidden = (services.count != 0)
 
-        if let services = services {
-            let user = NSUserName()
-            for service in services {
-                let item = NSMenuItem.init(title: service.name, action: nil, keyEquivalent: "")
+        // Loop over menu items, and update as necessary. Stop when encountering noServicesItem.
+        let user = NSUserName()
+        var i = 0
+        for service in services {
+            guard var item = statusMenu.item(at: i) else {
+                return assertionFailure("Could not get menu item.")
+            }
+            guard var altItem = statusMenu.item(at: i+1) else {
+                return assertionFailure("Could not get menu item.")
+            }
 
-                if service.state == "started" {
-                    item.state = NSOnState
-                } else if service.state == "stopped" {
-                    item.state = NSOffState
-                } else {
-                    item.state = NSMixedState
-                    item.isEnabled = false
-                }
+            // Delete the item if it's the name is lexicographically greater than what we expected (i.e., a service was uninstalled)
+            if item != noServicesItem && item.title.lexicographicallyPrecedes(service.name) {
+                statusMenu.removeItem(altItem)
+                statusMenu.removeItem(item)
+            }
 
-                if service.user != "" && service.user != user {
-                    item.isEnabled = false
-                }
-
-                if item.isEnabled {
-                    item.action = #selector(AppDelegate.handleClick(_:))
-                }
-
-                statusMenu.addItem(item)
-
-                let altItem = NSMenuItem.init(title: "Restart "+service.name, action: #selector(AppDelegate.handleRestartClick(_:)), keyEquivalent: "")
+            // Insert a new menu item if we hit the end or if this is a new service
+            if item == noServicesItem || service.name != item.title {
+                item = NSMenuItem.init(title: service.name, action: #selector(AppDelegate.handleClick(_:)), keyEquivalent: "")
+                altItem = NSMenuItem.init(title: "Restart "+service.name, action: #selector(AppDelegate.handleRestartClick(_:)), keyEquivalent: "")
                 altItem.representedObject = service
-                altItem.state = item.state
-                altItem.isEnabled = item.isEnabled
                 altItem.isAlternate = true
                 altItem.isHidden = true
                 altItem.keyEquivalentModifierMask = NSAlternateKeyMask
-                statusMenu.addItem(altItem)
+                statusMenu.insertItem(item, at: i)
+                statusMenu.insertItem(altItem, at: i+1)
             }
-            if services.count == 0 {
-                let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
-                item.isEnabled = false
-                statusMenu.addItem(item)
+
+            // Update the item
+            if service.state == "started" {
+                item.state = NSOnState
+            }
+            else if service.state == "stopped" {
+                item.state = NSOffState
             }
             else {
-                statusMenu.addItem(.separator())
-                statusMenu.addItem(
-                    .init(title: "Start all", action:#selector(AppDelegate.handleStartAll(_:)), keyEquivalent: "s")
-                )
-                statusMenu.addItem(
-                    .init(title: "Stop all", action:#selector(AppDelegate.handleStopAll(_:)), keyEquivalent: "x")
-                )
-                statusMenu.addItem(
-                    .init(title: "Restart all", action:#selector(AppDelegate.handleRestartAll(_:)), keyEquivalent: "r")
-                )
+                item.state = NSMixedState
+                item.isEnabled = false
             }
+            if service.user != "" && service.user != user {
+                item.isEnabled = false
+            }
+            altItem.state = item.state
+            altItem.isEnabled = item.isEnabled
+
+            // Increment iterator
+            i += 2
         }
 
-        statusMenu.addItem(.separator())
-        statusMenu.addItem(
-            .init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
-        )
-
-        if refreshing {
-            statusMenu.addItem(.separator())
-            let item = NSMenuItem.init(title: "Refreshing...", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            statusMenu.addItem(item)
+        // Delete any unexpected menu items at the end (happens if the user uninstalled services that were at the end)
+        while (true) {
+            let item = statusMenu.item(at: i) as NSMenuItem?
+            if item == noServicesItem {
+                break
+            }
+            statusMenu.removeItem(item!)
         }
     }
 
     func queryServicesAndUpdateMenu() {
-        updateMenu(refreshing: true)
+        refreshingItem.isHidden = false
+        refreshingSeparator.isHidden = false
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = self.serviceStates()
             DispatchQueue.main.async {
-                self.services = result
-                self.updateMenu(refreshing: false)
+                self.refreshingItem.isHidden = true
+                self.refreshingSeparator.isHidden = true
+                self.updateMenu(result)
             }
         }
     }
