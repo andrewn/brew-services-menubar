@@ -20,6 +20,12 @@ This reads the [homebrew-services](https://github.com/Homebrew/homebrew-services
 
 2. Download from the [Releases](https://github.com/andrewn/brew-services-menubar/releases) page.
 
+## Usage
+
+- Start a specific service by clicking it's name
+- Stop a specific running service (indicated with a tick) by clicking it's name
+- Hold Command to allow a single service to be restarted
+
 ## Configuration
 
 By default looks for `/usr/local/bin/brew`. If this not correct for your setup,
