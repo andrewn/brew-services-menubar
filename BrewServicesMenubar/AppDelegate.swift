@@ -22,7 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @IBOutlet weak var statusMenu: NSMenu!
 
     // Returns a status item from the system menu bar of variable length
-    let statusItem = NSStatusBar.system().statusItem(withLength: -1)
+    let statusItem = NSStatusBar.system.statusItem(withLength: -1)
     var services: [Service]?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -44,38 +44,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     // Event handlers for UI actions
     //
-    func handleClick(_ sender: NSMenuItem) {
-        if sender.state == NSOnState {
-            sender.state = NSOffState
-            controlService(sender.title, state: "stop")
+    @objc func handleClick(_ sender: NSMenuItem) {
+        let service = sender.representedObject as! Service
+        sender.state = sender.state == .on ? .off : .on
+        
+        if service.user == "root" {
+            controlServiceRoot(service.name, state: sender.state == .on ? "start" : "stop")
         } else {
-            sender.state = NSOnState
-            controlService(sender.title, state: "start")
+            controlService(service.name, state: sender.state == .on ? "start" : "stop")
         }
     }
+    
+    //
+    // Event handlers for Root UI actions
+    //
+    @objc func handleRootClick(_ sender: NSMenuItem) {
+        let service = sender.representedObject as! Service
+        sender.state = sender.state == .on ? .off : .on
+        controlServiceRoot(service.name, state: sender.state == .on ? "start" : "stop")
+    }
 
-    func handleRestartClick(_ sender: NSMenuItem) {
+    @objc func handleRestartClick(_ sender: NSMenuItem) {
         let service = sender.representedObject as! Service
         controlService(service.name, state: "restart")
     }
 
-    func handleStartAll(_ sender: NSMenuItem) {
+    @objc func handleStartAll(_ sender: NSMenuItem) {
         controlService("--all", state: "start")
     }
 
-    func handleStopAll(_ sender: NSMenuItem) {
+    @objc func handleStopAll(_ sender: NSMenuItem) {
         controlService("--all", state: "stop")
     }
 
-    func handleRestartAll(_ sender: NSMenuItem) {
+    @objc func handleRestartAll(_ sender: NSMenuItem) {
         controlService("--all", state: "restart")
     }
 
-    func handleQuit(_ sender: NSMenuItem) {
+    @objc func handleQuit(_ sender: NSMenuItem) {
         NSApp.terminate(nil)
     }
 
-    func handleMenuOpen(_ sender: AnyObject?) {
+    @objc func handleMenuOpen(_ sender: AnyObject?) {
         queryServicesAndUpdateMenu()
         statusItem.popUpMenu(statusMenu)
     }
@@ -87,20 +97,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.removeAllItems()
 
         if let services = services {
-            let user = NSUserName()
             for service in services {
                 let item = NSMenuItem.init(title: service.name, action: nil, keyEquivalent: "")
+                item.representedObject = service
 
                 if service.state == "started" {
-                    item.state = NSOnState
+                    item.state = NSControl.StateValue.on
                 } else if service.state == "stopped" {
-                    item.state = NSOffState
+                    item.state = NSControl.StateValue.off
                 } else {
-                    item.state = NSMixedState
-                    item.isEnabled = false
-                }
-
-                if service.user != "" && service.user != user {
+                    item.state = NSControl.StateValue.mixed
                     item.isEnabled = false
                 }
 
@@ -116,8 +122,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 altItem.isEnabled = item.isEnabled
                 altItem.isAlternate = true
                 altItem.isHidden = true
-                altItem.keyEquivalentModifierMask = NSAlternateKeyMask
+                altItem.keyEquivalentModifierMask = .option
                 statusMenu.addItem(altItem)
+                
+                let altItem2 = NSMenuItem.init(title: "\(service.name) (Root)", action: #selector(AppDelegate.handleRootClick(_:)), keyEquivalent: "")
+                altItem2.representedObject = service
+                altItem2.state = item.state
+                altItem2.isEnabled = item.isEnabled
+                altItem2.isAlternate = true
+                altItem2.isHidden = true
+                altItem2.keyEquivalentModifierMask = .control
+                statusMenu.addItem(altItem2)
             }
             if services.count == 0 {
                 let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
@@ -168,6 +183,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     func brewExecutable() -> String {
         return UserDefaults.standard.string(forKey: brewExecutableKey)!
+    }
+    
+    func controlServiceRoot(_ name:String, state:String){
+        let brew = self.brewExecutable()
+        let cmd = "do shell script \"\(brew) services \(state) \(name)\"  with administrator privileges"
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: cmd) else {
+            return
+        }
+        script.executeAndReturnError(&error)
+        
+        if(error != nil) {
+            let alert = NSAlert()
+            alert.messageText = "Error running \(name)"
+            alert.informativeText = "Error with sudo command \(cmd)"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            dump(error)
+        }
+        self.queryServicesAndUpdateMenu()
     }
 
     //
