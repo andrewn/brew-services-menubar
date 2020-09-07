@@ -22,9 +22,9 @@ This reads the [homebrew-services](https://github.com/Homebrew/homebrew-services
 
 ## Usage
 
-- Start a specific service by clicking it's name
+- Start a specific service by clicking its name
 - Stop a specific running service (indicated with a tick) by clicking its name
-- Hold the Option key to allow a single service to be restarted
+- Hold the <kbd>Option</kbd> key to allow a single service to be restarted
 
 ## Configuration
 
