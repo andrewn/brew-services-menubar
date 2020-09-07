@@ -230,7 +230,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func parseServiceList(_ raw: String) -> [Service] {
         let rawServices = raw.components(separatedBy: "\n")
-        return rawServices[1..<rawServices.count].map(parseService)
+        var services:ArraySlice<String>
+        if rawServices[0].starts(with: "==>") {
+            // Skip two extra lines if this is the first invocation of "brew services list", which will cause Homebrew to tap the homebrew/services repository
+            services = rawServices[3..<rawServices.count]
+        }
+        else {
+            // Skip the header before the services are listed
+            services = rawServices[1..<rawServices.count]
+        }
+        return services.map(parseService)
     }
 
     func parseService(_ raw:String) -> Service {
