@@ -19,6 +19,10 @@ brew cask install brewservicesmenubar
 
 Download from the [Releases](https://github.com/andrewn/brew-services-menubar/releases) page.
 
+### Autostart
+
+The program doesn't have an option to autostart itself, so you may want to open _System Preferences_ -> _Users & Groups_ -> _Login Items_ and add the application to the list to have it start when you log in.
+
 ## Usage
 
 - Start a specific service by clicking its name
