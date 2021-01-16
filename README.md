@@ -14,7 +14,7 @@ This reads the [homebrew-services](https://github.com/Homebrew/homebrew-services
 
 ### using Homebrew-Cask
 
-2. `brew cask install brewservicesmenubar`
+2. `brew install --cask brewservicesmenubar`
 
 ### manually
 
