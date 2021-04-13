@@ -12,7 +12,7 @@ This reads the [homebrew services](https://github.com/Homebrew/homebrew-services
 ### Using Homebrew Cask
 
 ```
-brew cask install brewservicesmenubar
+brew install --cask brewservicesmenubar
 ```
 
 ### Manually
