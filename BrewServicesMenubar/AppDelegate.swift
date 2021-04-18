@@ -18,6 +18,7 @@ struct Service {
 
 enum BrewServicesMenubarErrors: Error {
     case homebrewNotFound
+    case homebrewError
 }
 
 @NSApplicationMain
@@ -95,11 +96,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     // Update menu of services
     //
-    func updateMenu(refreshing: Bool = false, notFound: Bool = false) {
+    func updateMenu(refreshing: Bool = false, notFound: Bool = false, error: Bool = false) {
         statusMenu.removeAllItems()
 
         if notFound {
             let item = NSMenuItem.init(title: "Homebrew not found", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            statusMenu.addItem(item)
+        }
+        else if error {
+            let item = NSMenuItem.init(title: "Homebrew error", action: nil, keyEquivalent: "")
             item.isEnabled = false
             statusMenu.addItem(item)
         }
@@ -174,10 +180,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             updateMenu(refreshing: true)
             DispatchQueue.global(qos: .userInitiated).async {
-                let result = self.serviceStates(launchPath: launchPath)
-                DispatchQueue.main.async {
-                    self.services = result
-                    self.updateMenu()
+                do {
+                    let result = try self.serviceStates(launchPath: launchPath)
+                    DispatchQueue.main.async {
+                        self.services = result
+                        self.updateMenu()
+                    }
+                } catch {
+                    self.updateMenu(error: true)
                 }
             }
         } catch {
@@ -245,7 +255,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Queries and parses the output of:
     //      brew services list
     //
-    func serviceStates(launchPath: String) -> [Service] {
+    func serviceStates(launchPath: String) throws -> [Service] {
         let task = Process()
         let outpipe = Pipe()
         task.launchPath = launchPath
@@ -257,7 +267,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         task.waitUntilExit()
 
         if task.terminationStatus != 0 {
-            return []
+            throw BrewServicesMenubarErrors.homebrewError
         }
 
         if var string = String(data: outdata, encoding: String.Encoding.utf8) {
