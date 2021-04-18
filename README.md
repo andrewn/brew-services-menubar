@@ -31,8 +31,8 @@ The program doesn't have an option to autostart itself, so you may want to open 
 
 ## Configuration
 
-By default looks for `/usr/local/bin/brew`. If this not correct for your setup,
-you can customize it using:
+By default looks for Homebrew at `/usr/local/bin/brew` and `/opt/Homebrew/bin/brew`.
+If this not correct for your setup, you can customize it using:
 
 ```sh
 defaults write andrewnicolaou.BrewServicesMenubar brewExecutable /usr/local/bin/brew
