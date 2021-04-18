@@ -58,12 +58,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Event handlers for UI actions
     //
     @objc func handleClick(_ sender: NSMenuItem) {
-        if sender.state == NSControl.StateValue.on {
-            sender.state = NSControl.StateValue.off
-            controlService(sender.title, state: "stop")
-        } else {
-            sender.state = NSControl.StateValue.on
+        if sender.state == NSControl.StateValue.off {
             controlService(sender.title, state: "start")
+        } else {
+            controlService(sender.title, state: "stop")
         }
     }
 
@@ -120,7 +118,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     item.state = NSControl.StateValue.off
                 } else {
                     item.state = NSControl.StateValue.mixed
-                    item.isEnabled = false
                 }
 
                 if service.user != "" && service.user != user {
