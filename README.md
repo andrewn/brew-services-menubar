@@ -3,28 +3,31 @@ brew-services-menubar
 
 > An OS X menu item for starting and stopping homebrew services.
 
-This reads the [homebrew-services](https://github.com/Homebrew/homebrew-services) command, showing you the status of your services and allowing them to be started, stopped and restarted.
+This reads the [homebrew services](https://github.com/Homebrew/homebrew-services) command, showing you the status of your services and allowing them to be started, stopped and restarted.
 
 <img src="docs/screenshot.png" alt="Screenshot" width="197">
 
 ## Install
 
-1. Make sure [homebrew-services](https://github.com/Homebrew/homebrew-services) is installed.
-(Try running `brew services list`.)
+### Using Homebrew Cask
 
-### using Homebrew-Cask
+```
+brew install --cask brewservicesmenubar
+```
 
-2. `brew install --cask brewservicesmenubar`
+### Manually
 
-### manually
+Download from the [Releases](https://github.com/andrewn/brew-services-menubar/releases) page.
 
-2. Download from the [Releases](https://github.com/andrewn/brew-services-menubar/releases) page.
+### Autostart
+
+The program doesn't have an option to autostart itself, so you may want to open _System Preferences_ -> _Users & Groups_ -> _Login Items_ and add the application to the list to have it start when you log in.
 
 ## Usage
 
-- Start a specific service by clicking it's name
-- Stop a specific running service (indicated with a tick) by clicking it's name
-- Hold Command to allow a single service to be restarted
+- Start a specific service by clicking its name
+- Stop a specific running service (indicated with a tick) by clicking its name
+- Hold the <kbd>Option</kbd> key to allow a single service to be restarted
 
 ## Configuration
 
