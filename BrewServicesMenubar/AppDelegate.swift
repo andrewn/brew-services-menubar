@@ -16,6 +16,11 @@ struct Service {
     var user = ""
 }
 
+enum BrewServicesMenubarErrors: Error {
+    case homebrewNotFound
+    case homebrewError
+}
+
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -26,9 +31,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var services: [Service]?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        UserDefaults.standard.register(defaults: [
-            brewExecutableKey: "/usr/local/bin/brew"
-        ])
+        // Homebrew can now be located in two different locations depending on how it was installed and what architecture the computer is running
+        // Define the most likely path first based on the architecture
+        #if arch(arm64)
+            UserDefaults.standard.register(defaults: [
+                brewExecutableKey: [ "/opt/Homebrew/bin/brew", "/usr/local/bin/brew" ]
+            ])
+        #elseif arch(x86_64)
+            UserDefaults.standard.register(defaults: [
+                brewExecutableKey: [ "/usr/local/bin/brew", "/opt/Homebrew/bin/brew" ]
+            ])
+        #endif
 
         let icon = NSImage(named: "icon")
         icon?.isTemplate = true
@@ -45,12 +58,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Event handlers for UI actions
     //
     @objc func handleClick(_ sender: NSMenuItem) {
-        if sender.state == NSControl.StateValue.on {
-            sender.state = NSControl.StateValue.off
-            controlService(sender.title, state: "stop")
-        } else {
-            sender.state = NSControl.StateValue.on
+        if sender.state == NSControl.StateValue.off {
             controlService(sender.title, state: "start")
+        } else {
+            controlService(sender.title, state: "stop")
         }
     }
 
@@ -83,10 +94,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     //
     // Update menu of services
     //
-    func updateMenu(refreshing: Bool) {
+    func updateMenu(refreshing: Bool = false, notFound: Bool = false, error: Bool = false) {
         statusMenu.removeAllItems()
 
-        if let services = services {
+        if notFound {
+            let item = NSMenuItem.init(title: "Homebrew not found", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            statusMenu.addItem(item)
+        }
+        else if error {
+            let item = NSMenuItem.init(title: "Homebrew error", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            statusMenu.addItem(item)
+        }
+        else if let services = services {
             let user = NSUserName()
             for service in services {
                 let item = NSMenuItem.init(title: service.name, action: nil, keyEquivalent: "")
@@ -97,7 +118,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     item.state = NSControl.StateValue.off
                 } else {
                     item.state = NSControl.StateValue.mixed
-                    item.isEnabled = false
                 }
 
                 if service.user != "" && service.user != user {
@@ -152,22 +172,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func queryServicesAndUpdateMenu() {
-        updateMenu(refreshing: true)
+        do {
+            let launchPath = try self.brewExecutable()
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = self.serviceStates()
-            DispatchQueue.main.async {
-                self.services = result
-                self.updateMenu(refreshing: false)
+            updateMenu(refreshing: true)
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let result = try self.serviceStates(launchPath: launchPath)
+                    DispatchQueue.main.async {
+                        self.services = result
+                        self.updateMenu()
+                    }
+                } catch {
+                    self.updateMenu(error: true)
+                }
             }
+        } catch {
+            updateMenu(notFound: true)
         }
     }
 
     //
     // Locate homebrew
     //
-    func brewExecutable() -> String {
-        return UserDefaults.standard.string(forKey: brewExecutableKey)!
+    func brewExecutable() throws -> String {
+        // if an array value is set: (the default)
+        if let value = UserDefaults.standard.array(forKey: brewExecutableKey) as? [String] {
+            for path in value {
+                if FileManager.default.isExecutableFile(atPath: path) {
+                    return path
+                }
+            }
+        }
+        // if a string value is set:
+        if let path = UserDefaults.standard.string(forKey: brewExecutableKey) {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        // if homebrew can't be found:
+        throw BrewServicesMenubarErrors.homebrewNotFound
     }
 
     //
@@ -176,7 +220,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func controlService(_ name:String, state:String) {
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
-            task.launchPath = self.brewExecutable()
+            do {
+                task.launchPath = try self.brewExecutable()
+            } catch {
+                let alert = NSAlert.init()
+                alert.alertStyle = .critical
+                alert.messageText = "Error locating Homebrew"
+                alert.runModal()
+                return
+            }
             task.arguments = ["services", state, name]
 
             task.launch()
@@ -200,12 +252,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Queries and parses the output of:
     //      brew services list
     //
-    func serviceStates() -> [Service] {
-        let launchPath = self.brewExecutable()
-        if !FileManager.default.isExecutableFile(atPath: launchPath) {
-            return []
-        }
-
+    func serviceStates(launchPath: String) throws -> [Service] {
         let task = Process()
         let outpipe = Pipe()
         task.launchPath = launchPath
@@ -217,7 +264,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         task.waitUntilExit()
 
         if task.terminationStatus != 0 {
-            return []
+            throw BrewServicesMenubarErrors.homebrewError
         }
 
         if var string = String(data: outdata, encoding: String.Encoding.utf8) {
