@@ -12,7 +12,7 @@ let brewExecutableKey = "brewExecutable"
 
 struct Service {
     var name = ""
-    var state = "unknown" // "started", "stopped", "error", "unknown"
+    var state = "unknown" // "started", "stopped", "none", "error", "unknown"
     var user = ""
 }
 
@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                 if service.state == "started" {
                     item.state = NSControl.StateValue.on
-                } else if service.state == "stopped" {
+                } else if service.state == "stopped"  || service.state == "none" {
                     item.state = NSControl.StateValue.off
                 } else {
                     item.state = NSControl.StateValue.mixed
