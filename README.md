@@ -1,5 +1,4 @@
-brew-services-menubar
-===
+# brew-services-menubar
 
 > An OS X menu item for starting and stopping homebrew services.
 
@@ -18,6 +17,10 @@ brew install --cask brewservicesmenubar
 ### Manually
 
 Download from the [Releases](https://github.com/andrewn/brew-services-menubar/releases) page.
+
+⚠️ You'll see a warning <cite>"BrewServicesMenubar" can't be opened because Apple cannot check it for malicious software</cite>. This is because I haven't paid Apple for a developer account.
+
+[More info about this malicious software warning](https://support.apple.com/en-gb/guide/mac-help/mchleab3a043/mac).
 
 ### Autostart
 
