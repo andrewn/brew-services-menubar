@@ -13,6 +13,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		49804D5727CD1AAF00B03201 /* BrewServicesMenubar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BrewServicesMenubar.entitlements; sourceTree = "<group>"; };
 		49ED77AE1CD4B524000B4479 /* BrewServicesMenubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BrewServicesMenubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		49ED77B11CD4B524000B4479 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		49ED77B31CD4B525000B4479 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -50,6 +51,7 @@
 		49ED77B01CD4B524000B4479 /* BrewServicesMenubar */ = {
 			isa = PBXGroup;
 			children = (
+				49804D5727CD1AAF00B03201 /* BrewServicesMenubar.entitlements */,
 				49ED77B11CD4B524000B4479 /* AppDelegate.swift */,
 				49ED77B31CD4B525000B4479 /* Assets.xcassets */,
 				49ED77B51CD4B525000B4479 /* MainMenu.xib */,
@@ -256,8 +258,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BrewServicesMenubar/BrewServicesMenubar.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = BrewServicesMenubar/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MARKETING_VERSION = 4.1;
@@ -271,8 +275,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BrewServicesMenubar/BrewServicesMenubar.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = BrewServicesMenubar/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MARKETING_VERSION = 4.1;
