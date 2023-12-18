@@ -184,7 +184,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         self.updateMenu()
                     }
                 } catch {
-                    self.updateMenu(error: true)
+                    DispatchQueue.main.async {
+                        self.updateMenu(error: true)
+                    }
                 }
             }
         } catch {
