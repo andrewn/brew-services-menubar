@@ -179,12 +179,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let result = try self.serviceStates(launchPath: launchPath)
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.sync {
                         self.services = result
                         self.updateMenu()
                     }
                 } catch {
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.sync {
                         self.updateMenu(error: true)
                     }
                 }
@@ -220,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Changes a service state
     //
     func controlService(_ name:String, state:String) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).sync {
             let task = Process()
             do {
                 task.launchPath = try self.brewExecutable()
