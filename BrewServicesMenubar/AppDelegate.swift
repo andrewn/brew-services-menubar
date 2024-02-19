@@ -232,16 +232,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             task.arguments = ["services", state, name]
+            
+            let errorPipe = Pipe()
+            task.standardError = errorPipe
 
             task.launch()
             task.waitUntilExit()
 
             if task.terminationStatus != 0 {
                 DispatchQueue.main.async {
+                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    var error = String(decoding: errorData, as: UTF8.self)
+                    if error.isEmpty {
+                        error = "You will need to manually resolve the issue."
+                    }
+
                     let alert = NSAlert.init()
                     alert.alertStyle = .critical
                     alert.messageText = "Could not \(state) \(name)"
-                    alert.informativeText = "You will need to manually resolve the issue."
+                    alert.informativeText = error
                     alert.runModal()
                 }
             }
