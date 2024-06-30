@@ -179,12 +179,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let result = try self.serviceStates(launchPath: launchPath)
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.sync {
                         self.services = result
                         self.updateMenu()
                     }
                 } catch {
-                    self.updateMenu(error: true)
+                    DispatchQueue.main.sync {
+                        self.updateMenu(error: true)
+                    }
                 }
             }
         } catch {
@@ -218,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Changes a service state
     //
     func controlService(_ name:String, state:String) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).sync {
             let task = Process()
             do {
                 task.launchPath = try self.brewExecutable()
@@ -230,16 +232,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             task.arguments = ["services", state, name]
+            
+            let errorPipe = Pipe()
+            task.standardError = errorPipe
 
             task.launch()
             task.waitUntilExit()
 
             if task.terminationStatus != 0 {
                 DispatchQueue.main.async {
+                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    var error = String(decoding: errorData, as: UTF8.self)
+                    if error.isEmpty {
+                        error = "You will need to manually resolve the issue."
+                    }
+
                     let alert = NSAlert.init()
                     alert.alertStyle = .critical
                     alert.messageText = "Could not \(state) \(name)"
-                    alert.informativeText = "You will need to manually resolve the issue."
+                    alert.informativeText = error
                     alert.runModal()
                 }
             }
