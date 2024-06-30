@@ -1,0 +1,87 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*" # This will trigger the workflow on push of tags starting with 'v'
+  pull_request:
+    branches: [main]
+
+env:
+  PROJECT_NAME: BrewServicesMenubar
+  SCHEME_NAME: BrewServicesMenubar
+  XCODE_VERSION: 15.4
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Build
+        run: |
+          xcodebuild clean build -project ${PROJECT_NAME}.xcodeproj -scheme ${SCHEME_NAME} -destination 'platform=macOS'
+
+      - name: Archive app
+        run: |
+          xcodebuild -project ${PROJECT_NAME}.xcodeproj -scheme ${SCHEME_NAME} -configuration Release archive -archivePath $PWD/build/${PROJECT_NAME}.xcarchive
+
+      - name: Export app
+        run: |
+          xcodebuild -exportArchive -archivePath $PWD/build/${PROJECT_NAME}.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath $PWD/build
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        if: startsWith(github.ref, 'refs/tags/')
+
+      - name: Zip .app for upload
+        run: |
+          cd $PWD/build
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            zip -r ${{ env.PROJECT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip ${{ env.PROJECT_NAME }}.app
+          else
+            zip -r ${{ env.PROJECT_NAME }}.zip ${{ env.PROJECT_NAME }}.app
+          fi
+          echo "ZIP_FILE=${{ env.PROJECT_NAME }}${{ startsWith(github.ref, 'refs/tags/') && format('-{0}', steps.get_version.outputs.VERSION) || '' }}.zip" >> $GITHUB_ENV
+          ls -la  # Debug: List contents of current directory
+
+      - name: Debug - List build directory
+        run: |
+          echo "Contents of $PWD/build:"
+          ls -R $PWD/build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}
+          path: ${{ github.workspace }}/build/${{ env.ZIP_FILE }}
+        if: success()
+
+      - name: Upload build directory (for debugging)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-directory-contents
+          path: $PWD/build
+        if: failure()
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ github.workspace }}/build/${{ env.ZIP_FILE }}
+          draft: false
+          prerelease: false
