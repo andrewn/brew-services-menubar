@@ -3,6 +3,8 @@ name: Build macOS App
 on:
   push:
     branches: [main]
+    tags:
+      - "v*" # This will trigger the workflow on push of tags starting with 'v'
   pull_request:
     branches: [main]
 
@@ -41,16 +43,32 @@ jobs:
         run: |
           xcodebuild -exportArchive -archivePath $PWD/build/${PROJECT_NAME}.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath $PWD/build
 
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        if: startsWith(github.ref, 'refs/tags/')
+
       - name: Zip .app for upload
         run: |
           cd $PWD/build
-          zip -r ${{ env.PROJECT_NAME }}.zip ${{ env.PROJECT_NAME }}.app
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            zip -r ${{ env.PROJECT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip ${{ env.PROJECT_NAME }}.app
+          else
+            zip -r ${{ env.PROJECT_NAME }}.zip ${{ env.PROJECT_NAME }}.app
+          fi
+          echo "ZIP_FILE=${{ env.PROJECT_NAME }}${{ startsWith(github.ref, 'refs/tags/') && format('-{0}', steps.get_version.outputs.VERSION) || '' }}.zip" >> $GITHUB_ENV
+          ls -la  # Debug: List contents of current directory
+
+      - name: Debug - List build directory
+        run: |
+          echo "Contents of $PWD/build:"
+          ls -R $PWD/build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PROJECT_NAME }}
-          path: build/${{ env.PROJECT_NAME }}.zip
+          path: ${{ github.workspace }}/build/${{ env.ZIP_FILE }}
         if: success()
 
       - name: Upload build directory (for debugging)
@@ -59,3 +77,11 @@ jobs:
           name: build-directory-contents
           path: $PWD/build
         if: failure()
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ github.workspace }}/build/${{ env.ZIP_FILE }}
+          draft: false
+          prerelease: false
