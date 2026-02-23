@@ -116,6 +116,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     item.state = NSControl.StateValue.on
                 } else if service.state == "stopped"  || service.state == "none" {
                     item.state = NSControl.StateValue.off
+                    if let onImage = NSImage(named: NSImage.menuOnStateTemplateName) {
+                        item.offStateImage = NSImage(size: onImage.size)
+                    }
                 } else {
                     item.state = NSControl.StateValue.mixed
                 }
