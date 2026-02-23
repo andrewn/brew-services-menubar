@@ -171,11 +171,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func queryServicesAndUpdateMenu() {
+    func queryServicesAndUpdateMenu(showRefreshing: Bool = true) {
         do {
             let launchPath = try self.brewExecutable()
 
-            updateMenu(refreshing: true)
+            if showRefreshing {
+                DispatchQueue.main.async {
+                    self.updateMenu(refreshing: true)
+                }
+            }
+
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let result = try self.serviceStates(launchPath: launchPath)
@@ -244,7 +249,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
-            self.queryServicesAndUpdateMenu()
+            self.queryServicesAndUpdateMenu(showRefreshing: false)
         }
     }
 
