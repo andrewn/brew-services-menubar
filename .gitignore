@@ -1,6 +1,7 @@
 .DS_Store
 Thumbs.db
-xcshareddata
 xcuserdata
 DerivedData
 .idea/
+build/
+*.xcarchive

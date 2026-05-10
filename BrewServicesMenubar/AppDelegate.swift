@@ -2,290 +2,252 @@
 //  AppDelegate.swift
 //  BrewServicesMenubar
 //
-//  Created by Andrew on 30/04/2016.
-//  Copyright © 2016 andrewnicolaou. All rights reserved.
-//
 
-import Cocoa
+import AppKit
 
-let brewExecutableKey = "brewExecutable"
+@main
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
-struct Service {
-    var name = ""
-    var state = "unknown" // "started", "stopped", "none", "error", "unknown"
-    var user = ""
-}
+    private var statusItem: NSStatusItem!
+    private let menu = NSMenu()
+    private var services: [BrewService] = []
+    private var isRefreshing = false
+    private var lastError: BrewError?
 
-enum BrewServicesMenubarErrors: Error {
-    case homebrewNotFound
-    case homebrewError
-}
-
-@NSApplicationMain
-class AppDelegate: NSObject, NSApplicationDelegate {
-
-    @IBOutlet weak var statusMenu: NSMenu!
-
-    // Returns a status item from the system menu bar of variable length
-    let statusItem = NSStatusBar.system.statusItem(withLength: -1)
-    var services: [Service]?
-
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Homebrew can now be located in two different locations depending on how it was installed and what architecture the computer is running
-        // Define the most likely path first based on the architecture
-        #if arch(arm64)
-            UserDefaults.standard.register(defaults: [
-                brewExecutableKey: [ "/opt/Homebrew/bin/brew", "/usr/local/bin/brew" ]
-            ])
-        #elseif arch(x86_64)
-            UserDefaults.standard.register(defaults: [
-                brewExecutableKey: [ "/usr/local/bin/brew", "/opt/Homebrew/bin/brew" ]
-            ])
-        #endif
-
-        let icon = NSImage(named: "icon")
-        icon?.isTemplate = true
-
-        if let button = statusItem.button {
-            button.image = icon
-            button.action = #selector(AppDelegate.handleMenuOpen(_:))
+    nonisolated static func main() {
+        // The runtime entry point runs on the main thread, but the compiler
+        // has no way to know that — so explicitly take the main-actor lane
+        // before touching any AppKit types or main-actor state.
+        MainActor.assumeIsolated {
+            let app = NSApplication.shared
+            let delegate = AppDelegate()
+            app.delegate = delegate
+            app.run()
+            withExtendedLifetime(delegate) {}
         }
-
-        queryServicesAndUpdateMenu()
     }
 
-    //
-    // Event handlers for UI actions
-    //
-    @objc func handleClick(_ sender: NSMenuItem) {
-        if sender.state == NSControl.StateValue.off {
-            controlService(sender.title, state: "start")
+    func applicationDidFinishLaunching(_ note: Notification) {
+        UserDefaults.standard.register(defaults: [
+            BrewLocator.defaultsKey: BrewLocator.defaultPaths
+        ])
+
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let icon = NSImage(named: "icon") {
+            icon.isTemplate = true
+            statusItem.button?.image = icon
+        }
+        menu.delegate = self
+        menu.autoenablesItems = false
+        statusItem.menu = menu
+
+        rebuildMenu()
+        Task { await refresh() }
+    }
+
+    // MARK: NSMenuDelegate
+
+    func menuWillOpen(_ menu: NSMenu) {
+        Task { await refresh() }
+    }
+
+    // MARK: Refresh
+
+    private func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        rebuildMenu()
+        defer {
+            isRefreshing = false
+            rebuildMenu()
+        }
+
+        guard let brew = currentBrewURL() else {
+            services = []
+            lastError = .homebrewNotFound
+            return
+        }
+
+        do {
+            let data = try await runBrew(brew, arguments: ["services", "list", "--json"])
+            services = try BrewServicesParser.parse(data)
+            lastError = nil
+        } catch let err as BrewError {
+            lastError = err
+        } catch {
+            lastError = .launchFailed(error.localizedDescription)
+        }
+    }
+
+    private func currentBrewURL() -> URL? {
+        BrewLocator.locate(
+            rawDefault: UserDefaults.standard.object(forKey: BrewLocator.defaultsKey)
+        )
+    }
+
+    // MARK: Menu construction
+
+    private func rebuildMenu() {
+        menu.removeAllItems()
+
+        if let error = lastError {
+            switch error {
+            case .homebrewNotFound:
+                menu.addItem(disabledItem("Homebrew not found"))
+            default:
+                menu.addItem(disabledItem("Homebrew error"))
+            }
+        } else if services.isEmpty {
+            menu.addItem(disabledItem(isRefreshing ? "Refreshing…" : "No services available"))
         } else {
-            controlService(sender.title, state: "stop")
+            let user = NSUserName()
+            for service in services {
+                addServiceItems(service, currentUser: user)
+            }
+            menu.addItem(.separator())
+            menu.addItem(actionItem(title: "Start all", action: #selector(handleStartAll), key: "s"))
+            menu.addItem(actionItem(title: "Stop all", action: #selector(handleStopAll), key: "x"))
+            menu.addItem(actionItem(title: "Restart all", action: #selector(handleRestartAll), key: "r"))
+        }
+
+        menu.addItem(.separator())
+        menu.addItem(actionItem(title: "Quit", action: #selector(handleQuit), key: "q"))
+
+        if isRefreshing && !services.isEmpty {
+            menu.addItem(.separator())
+            menu.addItem(disabledItem("Refreshing…"))
         }
     }
 
-    @objc func handleRestartClick(_ sender: NSMenuItem) {
-        let service = sender.representedObject as! Service
-        controlService(service.name, state: "restart")
+    private func addServiceItems(_ service: BrewService, currentUser: String) {
+        let item = NSMenuItem(title: service.name, action: nil, keyEquivalent: "")
+        switch service.status {
+        case .started:
+            item.state = .on
+        case .stopped, .none:
+            item.state = .off
+        default:
+            item.state = .mixed
+        }
+
+        let runByOtherUser = !(service.user ?? "").isEmpty && service.user != currentUser
+        item.isEnabled = !runByOtherUser
+        if item.isEnabled {
+            item.action = #selector(handleClick(_:))
+            item.target = self
+        }
+        item.representedObject = service.name
+        menu.addItem(item)
+
+        let restart = NSMenuItem(
+            title: "Restart \(service.name)",
+            action: #selector(handleRestart(_:)),
+            keyEquivalent: ""
+        )
+        restart.target = self
+        restart.representedObject = service.name
+        restart.state = item.state
+        restart.isEnabled = item.isEnabled
+        restart.isAlternate = true
+        restart.isHidden = true
+        restart.keyEquivalentModifierMask = .option
+        menu.addItem(restart)
     }
 
-    @objc func handleStartAll(_ sender: NSMenuItem) {
-        controlService("--all", state: "start")
+    private func disabledItem(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
     }
 
-    @objc func handleStopAll(_ sender: NSMenuItem) {
-        controlService("--all", state: "stop")
+    private func actionItem(title: String, action: Selector, key: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        return item
     }
 
-    @objc func handleRestartAll(_ sender: NSMenuItem) {
-        controlService("--all", state: "restart")
+    // MARK: Actions
+
+    @objc private func handleClick(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        let action = sender.state == .on ? "stop" : "start"
+        Task { await control(service: name, action: action) }
     }
 
-    @objc func handleQuit(_ sender: NSMenuItem) {
+    @objc private func handleRestart(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        Task { await control(service: name, action: "restart") }
+    }
+
+    @objc private func handleStartAll(_ sender: NSMenuItem) {
+        Task { await control(service: "--all", action: "start") }
+    }
+
+    @objc private func handleStopAll(_ sender: NSMenuItem) {
+        Task { await control(service: "--all", action: "stop") }
+    }
+
+    @objc private func handleRestartAll(_ sender: NSMenuItem) {
+        Task { await control(service: "--all", action: "restart") }
+    }
+
+    @objc private func handleQuit(_ sender: NSMenuItem) {
         NSApp.terminate(nil)
     }
 
-    @objc func handleMenuOpen(_ sender: AnyObject?) {
-        queryServicesAndUpdateMenu()
-        statusItem.popUpMenu(statusMenu)
-    }
-
-    //
-    // Update menu of services
-    //
-    func updateMenu(refreshing: Bool = false, notFound: Bool = false, error: Bool = false) {
-        statusMenu.removeAllItems()
-
-        if notFound {
-            let item = NSMenuItem.init(title: "Homebrew not found", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            statusMenu.addItem(item)
+    private func control(service: String, action: String) async {
+        guard let brew = currentBrewURL() else {
+            presentAlert(title: "Homebrew not found",
+                         message: "Could not locate the brew executable.")
+            return
         }
-        else if error {
-            let item = NSMenuItem.init(title: "Homebrew error", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            statusMenu.addItem(item)
-        }
-        else if let services = services {
-            let user = NSUserName()
-            for service in services {
-                let item = NSMenuItem.init(title: service.name, action: nil, keyEquivalent: "")
-
-                if service.state == "started" {
-                    item.state = NSControl.StateValue.on
-                } else if service.state == "stopped"  || service.state == "none" {
-                    item.state = NSControl.StateValue.off
-                } else {
-                    item.state = NSControl.StateValue.mixed
-                }
-
-                if service.user != "" && service.user != user {
-                    item.isEnabled = false
-                }
-
-                if item.isEnabled {
-                    item.action = #selector(AppDelegate.handleClick(_:))
-                }
-
-                statusMenu.addItem(item)
-
-                let altItem = NSMenuItem.init(title: "Restart "+service.name, action: #selector(AppDelegate.handleRestartClick(_:)), keyEquivalent: "")
-                altItem.representedObject = service
-                altItem.state = item.state
-                altItem.isEnabled = item.isEnabled
-                altItem.isAlternate = true
-                altItem.isHidden = true
-                altItem.keyEquivalentModifierMask = .option
-                statusMenu.addItem(altItem)
-            }
-            if services.count == 0 {
-                let item = NSMenuItem.init(title: "No services available", action: nil, keyEquivalent: "")
-                item.isEnabled = false
-                statusMenu.addItem(item)
-            }
-            else {
-                statusMenu.addItem(.separator())
-                statusMenu.addItem(
-                    .init(title: "Start all", action:#selector(AppDelegate.handleStartAll(_:)), keyEquivalent: "s")
-                )
-                statusMenu.addItem(
-                    .init(title: "Stop all", action:#selector(AppDelegate.handleStopAll(_:)), keyEquivalent: "x")
-                )
-                statusMenu.addItem(
-                    .init(title: "Restart all", action:#selector(AppDelegate.handleRestartAll(_:)), keyEquivalent: "r")
-                )
-            }
-        }
-
-        statusMenu.addItem(.separator())
-        statusMenu.addItem(
-            .init(title: "Quit", action:#selector(AppDelegate.handleQuit(_:)), keyEquivalent: "q")
-        )
-
-        if refreshing {
-            statusMenu.addItem(.separator())
-            let item = NSMenuItem.init(title: "Refreshing...", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            statusMenu.addItem(item)
-        }
-    }
-
-    func queryServicesAndUpdateMenu() {
         do {
-            let launchPath = try self.brewExecutable()
-
-            updateMenu(refreshing: true)
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let result = try self.serviceStates(launchPath: launchPath)
-                    DispatchQueue.main.async {
-                        self.services = result
-                        self.updateMenu()
-                    }
-                } catch {
-                    self.updateMenu(error: true)
-                }
-            }
+            _ = try await runBrew(brew, arguments: ["services", action, service])
         } catch {
-            updateMenu(notFound: true)
+            presentAlert(title: "Could not \(action) \(service)",
+                         message: "You will need to manually resolve the issue.")
         }
+        await refresh()
     }
 
-    //
-    // Locate homebrew
-    //
-    func brewExecutable() throws -> String {
-        // if an array value is set: (the default)
-        if let value = UserDefaults.standard.array(forKey: brewExecutableKey) as? [String] {
-            for path in value {
-                if FileManager.default.isExecutableFile(atPath: path) {
-                    return path
-                }
-            }
-        }
-        // if a string value is set:
-        if let path = UserDefaults.standard.string(forKey: brewExecutableKey) {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
-            }
-        }
-        // if homebrew can't be found:
-        throw BrewServicesMenubarErrors.homebrewNotFound
+    private func presentAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = title
+        alert.informativeText = message
+        _ = alert.runModal()
     }
+}
 
-    //
-    // Changes a service state
-    //
-    func controlService(_ name:String, state:String) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let task = Process()
-            do {
-                task.launchPath = try self.brewExecutable()
-            } catch {
-                let alert = NSAlert.init()
-                alert.alertStyle = .critical
-                alert.messageText = "Error locating Homebrew"
-                alert.runModal()
-                return
-            }
-            task.arguments = ["services", state, name]
-
-            task.launch()
-            task.waitUntilExit()
-
-            if task.terminationStatus != 0 {
-                DispatchQueue.main.async {
-                    let alert = NSAlert.init()
-                    alert.alertStyle = .critical
-                    alert.messageText = "Could not \(state) \(name)"
-                    alert.informativeText = "You will need to manually resolve the issue."
-                    alert.runModal()
-                }
-            }
-
-            self.queryServicesAndUpdateMenu()
-        }
-    }
-
-    //
-    // Queries and parses the output of:
-    //      brew services list
-    //
-    func serviceStates(launchPath: String) throws -> [Service] {
+/// Runs `brew` off the main actor and returns stdout as `Data`. Throws
+/// `BrewError.commandFailed` on non-zero exit and `BrewError.launchFailed`
+/// if the process can't be started (e.g. binary missing or blocked).
+func runBrew(_ executable: URL, arguments: [String]) async throws -> Data {
+    try await Task.detached(priority: .userInitiated) {
         let task = Process()
-        let outpipe = Pipe()
-        task.launchPath = launchPath
-        task.arguments = ["services", "list"]
-        task.standardOutput = outpipe
+        task.executableURL = executable
+        task.arguments = arguments
+        let stdout = Pipe()
+        let stderr = Pipe()
+        task.standardOutput = stdout
+        task.standardError = stderr
 
-        task.launch()
-        let outdata = outpipe.fileHandleForReading.readDataToEndOfFile()
+        do {
+            try task.run()
+        } catch {
+            throw BrewError.launchFailed(error.localizedDescription)
+        }
+
+        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
 
-        if task.terminationStatus != 0 {
-            throw BrewServicesMenubarErrors.homebrewError
+        guard task.terminationStatus == 0 else {
+            let errString = String(data: errData, encoding: .utf8) ?? ""
+            throw BrewError.commandFailed(exitCode: task.terminationStatus, stderr: errString)
         }
 
-        if var string = String(data: outdata, encoding: String.Encoding.utf8) {
-            string = string.trimmingCharacters(in: CharacterSet.newlines)
-            return parseServiceList(string)
-        }
-
-        return []
-    }
-
-    func parseServiceList(_ raw: String) -> [Service] {
-        let rawServices = raw.components(separatedBy: "\n")
-        return rawServices[1..<rawServices.count].map(parseService)
-    }
-
-    func parseService(_ raw:String) -> Service {
-        let parts = raw.components(separatedBy: " ").filter() { $0 != "" }
-        return Service(
-            name: parts[0],
-            state: parts.count >= 2 ? parts[1] : "unknown",
-            user: parts.count >= 3 ? parts[2] : ""
-        )
-    }
+        return outData
+    }.value
 }
