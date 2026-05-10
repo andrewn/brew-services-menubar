@@ -4,18 +4,88 @@ on:
   push:
     branches: [main]
     tags:
-      - "v*" # This will trigger the workflow on push of tags starting with 'v'
+      - "v*"
   pull_request:
     branches: [main]
 
 env:
   PROJECT_NAME: BrewServicesMenubar
   SCHEME_NAME: BrewServicesMenubar
-  XCODE_VERSION: 15.4
 
 jobs:
-  build:
-    runs-on: macos-latest
+  test:
+    name: Test (${{ matrix.runner }}, Xcode ${{ matrix.xcode }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-13, xcode: "15.2" }   # min deployment target
+          - { runner: macos-14, xcode: "15.4" }
+          - { runner: macos-15, xcode: "16.4" }
+          - { runner: macos-26, xcode: "26.0" }   # Tahoe — primary crash target
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app
+
+      - name: Build (Debug)
+        run: |
+          xcodebuild clean build \
+            -project ${PROJECT_NAME}.xcodeproj \
+            -scheme ${SCHEME_NAME} \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project ${PROJECT_NAME}.xcodeproj \
+            -scheme ${SCHEME_NAME} \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build (Release) for smoke test
+        run: |
+          xcodebuild build \
+            -project ${PROJECT_NAME}.xcodeproj \
+            -scheme ${SCHEME_NAME} \
+            -configuration Release \
+            -derivedDataPath ./DerivedData \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Smoke launch
+        # The crashes we're guarding against all manifest within seconds of
+        # launch (popUpMenu on first menu open, NSAlert from background queue,
+        # uncatchable NSException from launchPath when brew can't be launched).
+        # Launch the built app, give the initial async refresh a chance to run
+        # against the runner's real Homebrew install, and confirm the process
+        # is still alive.
+        run: |
+          APP="$PWD/DerivedData/Build/Products/Release/${PROJECT_NAME}.app"
+          test -d "$APP" || { echo "App not found at $APP"; ls -R DerivedData/Build/Products; exit 1; }
+          open "$APP"
+          sleep 3
+          if ! pgrep -x "${PROJECT_NAME}" >/dev/null; then
+            echo "App died within 3s of launch"
+            exit 1
+          fi
+          sleep 5
+          if ! pgrep -x "${PROJECT_NAME}" >/dev/null; then
+            echo "App died during initial brew query"
+            exit 1
+          fi
+          pkill -x "${PROJECT_NAME}" || true
+
+  release:
+    name: Release build & artifact
+    needs: test
+    runs-on: macos-15
+    env:
+      XCODE_VERSION: "16.4"
 
     steps:
       - uses: actions/checkout@v4
@@ -23,60 +93,43 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app
 
-      - name: Cache Swift packages
-        uses: actions/cache@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
-
-      - name: Build
+      - name: Archive
         run: |
-          xcodebuild clean build -project ${PROJECT_NAME}.xcodeproj -scheme ${SCHEME_NAME} -destination 'platform=macOS'
+          xcodebuild \
+            -project ${PROJECT_NAME}.xcodeproj \
+            -scheme ${SCHEME_NAME} \
+            -configuration Release \
+            archive -archivePath $PWD/build/${PROJECT_NAME}.xcarchive \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Archive app
+      - name: Export
         run: |
-          xcodebuild -project ${PROJECT_NAME}.xcodeproj -scheme ${SCHEME_NAME} -configuration Release archive -archivePath $PWD/build/${PROJECT_NAME}.xcarchive
-
-      - name: Export app
-        run: |
-          xcodebuild -exportArchive -archivePath $PWD/build/${PROJECT_NAME}.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath $PWD/build
+          xcodebuild -exportArchive \
+            -archivePath $PWD/build/${PROJECT_NAME}.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath $PWD/build
 
       - name: Get version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
         if: startsWith(github.ref, 'refs/tags/')
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Zip .app for upload
+      - name: Zip .app
         run: |
           cd $PWD/build
           if [[ $GITHUB_REF == refs/tags/* ]]; then
-            zip -r ${{ env.PROJECT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip ${{ env.PROJECT_NAME }}.app
+            ZIP_NAME="${{ env.PROJECT_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip"
           else
-            zip -r ${{ env.PROJECT_NAME }}.zip ${{ env.PROJECT_NAME }}.app
+            ZIP_NAME="${{ env.PROJECT_NAME }}.zip"
           fi
-          echo "ZIP_FILE=${{ env.PROJECT_NAME }}${{ startsWith(github.ref, 'refs/tags/') && format('-{0}', steps.get_version.outputs.VERSION) || '' }}.zip" >> $GITHUB_ENV
-          ls -la  # Debug: List contents of current directory
-
-      - name: Debug - List build directory
-        run: |
-          echo "Contents of $PWD/build:"
-          ls -R $PWD/build
+          zip -r "$ZIP_NAME" "${{ env.PROJECT_NAME }}.app"
+          echo "ZIP_FILE=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PROJECT_NAME }}
           path: ${{ github.workspace }}/build/${{ env.ZIP_FILE }}
-        if: success()
-
-      - name: Upload build directory (for debugging)
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-directory-contents
-          path: $PWD/build
-        if: failure()
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')

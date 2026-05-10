@@ -1,0 +1,57 @@
+[
+  {
+    "name": "postgresql@14",
+    "status": "started",
+    "user": "andrew",
+    "file": "/Users/andrew/Library/LaunchAgents/homebrew.mxcl.postgresql@14.plist",
+    "running": true,
+    "loaded": true,
+    "schedulable": false,
+    "pid": 12345,
+    "exit_code": 0
+  },
+  {
+    "name": "redis",
+    "status": "stopped",
+    "user": null,
+    "file": "/usr/local/opt/redis/homebrew.mxcl.redis.plist",
+    "running": false,
+    "loaded": false,
+    "schedulable": false,
+    "pid": null,
+    "exit_code": null
+  },
+  {
+    "name": "nginx",
+    "status": "none",
+    "user": null,
+    "file": null,
+    "running": false,
+    "loaded": false,
+    "schedulable": false,
+    "pid": null,
+    "exit_code": null
+  },
+  {
+    "name": "mysql",
+    "status": "error",
+    "user": "root",
+    "file": "/Library/LaunchDaemons/homebrew.mxcl.mysql.plist",
+    "running": false,
+    "loaded": true,
+    "schedulable": false,
+    "pid": null,
+    "exit_code": 1
+  },
+  {
+    "name": "weirdservice",
+    "status": "scheduled",
+    "user": "andrew",
+    "file": "/Users/andrew/Library/LaunchAgents/homebrew.mxcl.weirdservice.plist",
+    "running": false,
+    "loaded": true,
+    "schedulable": true,
+    "pid": null,
+    "exit_code": null
+  }
+]
